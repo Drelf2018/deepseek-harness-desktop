@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# The icon resource is generated (internal/genicon writes it, and the release workflow runs that
+# before it builds), so it is not carried in the source.
+rsrc.syso
