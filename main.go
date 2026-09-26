@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	artwork "github.com/Drelf2018/deepseek-harness-desktop/internal/artwork"
+	"github.com/Drelf2018/deepseek-harness-desktop/internal/artwork"
 	"github.com/Drelf2018/systray"
 	"golang.org/x/sys/windows"
 )
@@ -209,27 +209,21 @@ func main() {
 		return
 	}
 
-	// 内置页面是编译进来的模板，写坏了只可能是笔误。windowsgui 没有 stderr，panic 在 init 里
-	// 会静默退出，所以把这件事放到有日志、也有对话框的地方说。
-	if noticeLayoutErr != nil {
-		slog.Error("notice layout", "error", noticeLayoutErr)
-		err := showError("内置页面模板无法解析：\n" + noticeLayoutErr.Error())
-		if err != nil {
-			slog.Error("show", "error", err)
-		}
-		os.Exit(3)
-	}
-
 	// 只在 Windows 上，而且必须在任何窗口出现之前：不调的话，缩放过的显示器报出来的图标
 	// 度量还是 16 像素，系统只好把结果拉伸。
 	if err := systray.EnableDPIAwareness(); err != nil {
 		slog.Warn("dpi awareness", "error", err)
 	}
 
+	// 系统通知：注册 AUMID 与 URL 协议，并把通知那幅画按 Windows 说的尺寸现画一张（notify.go）。
+	// 画尺寸要等 DPI 感知开好之后再问，所以放在这里；放在单实例之后，是因为被一条通知叫起来的
+	// 那一份除了把窗口叫出来什么都不该做，不该再写一遍注册表。
+	go prepareNotifications()
+
 	// 托盘图标来自内置图形：凡是有可能被要到的尺寸都现画一张，打包成一个 .ico（internal/artwork）。
 	// 托盘只要一张，就是通知区域此刻要的那个尺寸——所以这里不必预置一整张尺寸表，125% 缩放要 20
 	// 像素时也不会退到 24 让系统去缩。需要那张表的是 exe 的资源图标，它只能构建时定。
-	icon, err := artwork.MultiSizeICO([]int{smallIconSize()})
+	icon, err := artwork.IconICO(smallIconSize())
 	if err != nil {
 		slog.Error("icon", "error", err)
 		err = showError("无法加载内置图标。")
@@ -314,6 +308,10 @@ func main() {
 	}); err != nil {
 		slog.Warn("bind _probe failed", "error", err)
 	}
+
+	// 页面出现等人的面板（审批、提问、计划评审）时弹一条系统通知：页面那一半（js/notify.js）、
+	// 接它的绑定、以及通知怎么变成一条命令，都在 notify.go。和上面两个绑定一样，必须赶在 Run 之前。
+	installNotifications()
 
 	// 窗口背后那个服务：没人在监听时在这里启动，并盯着它公布的那条链接——只有那个地址带得动
 	// 可用的 token。启动是阻塞的（第一次 npx 要下载包），所以这期间窗口已经起来、显示着记住的
@@ -471,10 +469,11 @@ func addMenuItems() {
 
 	systray.AddSeparator()
 
-	// 本地构建里多一个「测试」子菜单：三张提示页要等真实的故障才看得到，这里可以随时调出来看。
+	// 本地构建里多一个「测试」子菜单：三张提示页要等真实的故障才看得到，通知要等一个真面板，
+	// 这里都能直接调出来看。
 	// 判断用 Version —— 发布时 -X main.Version=<tag> 一定把它填上，所以只有自己编的那一份还是 "dev"。
 	if Version == "dev" {
-		mTest := systray.AddMenuItem("测试", "调出三张本地提示页")
+		mTest := systray.AddMenuItem("测试", "调出三张本地提示页与一条测试通知")
 		for _, c := range []struct {
 			title   string
 			tooltip string
@@ -493,6 +492,17 @@ func addMenuItems() {
 				}
 			}()
 		}
+
+		// 通知那一项不与那三张页同形：它没有页面可显示，它把面板会走的那条路自己走一遍——
+		// 渲染 notify.ps1、拉起 PowerShell、按 appID 署名。看见通知，就说明这条链是通的；
+		// 点一下，还能一并验「点通知把窗口叫回来」那一段。
+		mNotify := mTest.AddSubMenuItem("系统通知", "弹一条通知，看它长什么样、点它能不能把窗口叫回来")
+		go func() {
+			for range mNotify.ClickedCh {
+				// 与绑定那一侧同理：不在这条 goroutine 上等 PowerShell 起落。
+				go fireToast("测试通知", "审批、提问、计划评审出现时走的就是这条路。点这条通知，应当把窗口叫到前面。")
+			}
+		}()
 	}
 
 	// 接替的那一份先起来，这一份再走：反过来的话，新的一份会看见一个正在退出的旧实例，把它

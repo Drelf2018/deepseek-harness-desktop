@@ -48,13 +48,15 @@ var noticeFS embed.FS
 
 // noticeLayout is the one page layout every notice above is poured into, parsed once at startup.
 //
-// The error is kept instead of panicked on: a -H=windowsgui build has no stderr, so a template
-// that does not parse would end the program during init with nothing written anywhere. main
-// checks this as soon as there is a log to write to and a message box to raise.
+// Must, and not an error carried up to main: the layout is a file in this repository, and the way
+// to find out it is broken is to run the program - or the tests, whose binary the panic takes down
+// with it. A -H=windowsgui build has no stderr, so a panic here ends the program in silence; that
+// is the price of not carrying an error nobody can act on to the top of main.
+//
 // The file is named rather than globbed on purpose: with a glob, a second layout file would be
 // parsed and then quietly ignored, because Execute on a parsed set runs whichever template the
 // set was named after - the first file - and nothing would say so.
-var noticeLayout, noticeLayoutErr = template.ParseFS(noticeFS, "loading.html")
+var noticeLayout = template.Must(template.ParseFS(noticeFS, "loading.html"))
 
 // noticeData is what the layout is filled with.
 type noticeData struct {

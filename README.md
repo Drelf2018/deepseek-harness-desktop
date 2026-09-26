@@ -45,7 +45,7 @@
   重启 / 退出
 ```
 
-本地构建（`Version` 仍是 `dev`）在「打开程序目录」那组之后还多一个**测试**子菜单：三张提示页平时要等真实故障才看得到，那里可以直接把它们调出来看效果。发布版没有它——`-X main.Version=<tag>` 每次都会把 `Version` 填上，所以 `"dev"` 就等于「这一份是自己编的」。
+本地构建（`Version` 仍是 `dev`）在「打开程序目录」那组之后还多一个**测试**子菜单：三张提示页平时要等真实故障才看得到，那里可以直接把它们调出来看效果；最后一项「系统通知」直接弹一条通知，用来验通知那条链（`notify.ps1` → PowerShell → 按 `appID` 署名 → 点它把窗口叫回来）。发布版没有它——`-X main.Version=<tag>` 每次都会把 `Version` 填上，所以 `"dev"` 就等于「这一份是自己编的」。
 
 ### 重启是什么
 
@@ -68,7 +68,7 @@ go build -ldflags=-H=windowsgui -o "DeepSeek Harness Desktop.exe" .
 ```
 
 - **`rsrc.syso`** 是 exe 里的图标资源：资源管理器、快捷方式、固定到任务栏之后读的都是它。它**不进仓库**，由 `internal/genicon` 现做现用。少了这一步构建照样成功，只是图标静默退回系统默认，没有任何警告——所以 `go build` 之前先跑上面那一条。
-- **`-ldflags=-H=windowsgui`**：默认的控制台子系统会在窗口旁边多开一个控制台，它的任务栏按钮用的是系统控制台图标，看起来就像这个程序没有图标。
+- **`-ldflags=-H=windowsgui`**：默认的控制台子系统会在窗口旁边多开一个控制台，它的任务栏按钮用的是系统控制台图标，看起来就像这个程序没有图标。它还有一个更晚才发现的后果：**点通知会闪一个 cmd**——点通知等于再拉起一份本程序，而那一份在控制台子系统下会被 Windows 新开一个控制台窗口（第一份没有，只是因为它继承了启动它的那个终端）。`go run .` 不带这个标志，所以本地用 `go run` 调的时候很容易看到这一下；正式构建没有。
 
 ## 发布
 
@@ -79,19 +79,19 @@ go build -ldflags=-H=windowsgui -o "DeepSeek Harness Desktop.exe" .
 | 文件 | 管什么 |
 |---|---|
 | `main.go` | 程序本身：名字、菜单、启动与退出的顺序 |
-| `window.go` | WebView2 窗口和它下面的 Win32：窗口矩形/可见框的换算、移动、置顶 |
+| `window.go` | WebView2 窗口和它下面的 Win32：窗口矩形/可见框的换算、移动、置顶，以及窗口自己的图标（标题栏、任务栏、Alt+Tab） |
 | `dispatch.go` | 窗口自己的线程：消息过程与 `Dispatch` 队列（刷新用的 `reload.js` 也在这里） |
 | `access.go` | 窗口带着 cookie 问一次进不进得去：`askWindow.js` 与那 5 秒的等待 |
 | `sysmenu.go` | 窗口系统菜单上那一段：置顶/居中/刷新/恢复参数尺寸 + 三组尺寸 |
 | `size.go` | 三组尺寸菜单描述的那个尺寸，以及它的下限 |
 | `service.go` | DSH 服务的启动、输出解析、带 token 链接、Job Object 兜底 |
 | `notice.go` + `loading.html` | 服务不可用时的三张本地提示页：文字在 Go 里，版式在模板里，转义交给 `html/template` |
+| `notify.go` + `notify.ps1` | 等人的面板出现时弹系统通知：注册 AppUserModelID 与 URL 协议；toast 连载荷一起写在那个 .ps1（`text/template`）里，Go 只填启动地址、署名与两行文字 |
 | `instance.go` | 单实例：互斥体定谁是第一份，具名事件把第二次启动叫窗口的请求交给它 |
 | `startup.go` | 开机自启动（注册表 `HKCU\...\Run`） |
 | `appdata.go` | 本程序的路径：`%LOCALAPPDATA%` 下的日志与窗口状态，以及 exe 所在的程序目录 |
-| `icons.go` | 窗口自己的图标：标题栏、任务栏、Alt+Tab |
-| `js/` | 注入到页面里的三段脚本：`askForURL.js`（改地址）、`askWindow.js`（问一次进不进得去）、`reload.js`（刷新）。各自的 `go:embed` 就在用它的人旁边 |
-| `internal/artwork/` | 图标源按任意尺寸画出来、居中，拼成多尺寸 .ico。**与平台无关**，所以生成器能在 Linux 容器里跑 |
+| `js/` | 注入到页面里的四段脚本：`askForURL.js`（改地址）、`askWindow.js`（问一次进不进得去）、`reload.js`（刷新）、`notify.js`（出现等人的面板时通知一声）。各自的 `go:embed` 就在用它的人旁边 |
+| `internal/artwork/` | 图标源按任意尺寸画出来、居中，拼成多尺寸 .ico，或只装一张（通知的图标要的是文件，而且只能装一张）。**与平台无关**，所以生成器能在 Linux 容器里跑 |
 | `internal/artwork/harness.svg` | 图标源，矢量，每个尺寸现画 |
 | `internal/genicon/` | 生成器：写 `rsrc.syso`（`go run ./internal/genicon [arch]`） |
 | `icon_test.go` | 只校验：把同样几张图读回来，检查条目数与尺寸，不写任何文件 |
@@ -114,13 +114,24 @@ Go 侧的探测没有 cookie，看不出这个窗口能不能进去，所以不�
 </details>
 
 <details>
+<summary>面板等人的时候，系统通知是怎么来的</summary>
+
+审批、提问、计划评审这三块面板只有页面自己看得见，所以由 `js/notify.js` 盯着：它随每个文档装进去（`Init`），用 `MutationObserver`（外加 1.5 秒一次的兜底）看那三个 `data-*-key` 属性有没有出现，出现一个新的就调用 `window._notify(标题, 正文)`。去重靠的就是那个 key——同一个面板重绘多少次都只发一条，面板消失之后 key 被忘掉，所以同一块面板再来一次会再通知一次。标题与正文取自面板自己的文字（审批取 scroll 里的第一行，提问取 `h2`，计划评审取第一个标题），裁到 120 字。
+
+Go 那半边在 `notify.go`：一个绑定接住这次调用，把它渲染进 `notify.ps1`（那个文件是 `text/template`，留着 `{{.Launch}}` / `{{.Notifier}}` 和两处文字；`escapeXML` 注册成模板函数 `xml`，负责把文字转义进 XML 载荷），再交给 Windows PowerShell 5.1 的 WinRT toast——Go 自己够不着那个 API，为一条通知不值得拉一整套 COM。转义不能省：一个没转义的 `&` 就足以让通知悄悄不出现；脚本本身走 `-EncodedCommand`（UTF-16LE base64），因为命令行要经过进程的 ANSI 代码页，中文到那里就不是原来的字符了。
+
+通知要像这个程序自己发的、点了要能回到这个窗口，所以启动时写三处注册表：`HKCU\Software\Classes\AppUserModelId\<appID>` 下的 `DisplayName`（没有它，通知会署名成 Windows PowerShell）与 `IconUri`（那幅画得先落到数据目录里，因为 shell 读的是文件，不是字节；用**单尺寸的 .ico**，尺寸取 `SM_CXSMICON`，与托盘图标是同一份字节。标题旁边那个位置**不是**文档里 `appLogoOverride` 的 48，那个是正文左边的缩略图；而多尺寸那份交给它会被画糊、还啃掉边缘，所以只装一张——`notify.go` 里 `notificationIcon` 的注释写着这段来历），以及 `<appID>://` 这个 URL 协议。署名旁边那幅画就来自这份注册。**这份注册 shell 只在它第一次见到这个 AUMID 时读一次**——先注册 `DisplayName`、后补 `IconUri` 的话，通知会一直「有名字、没图标」——重启 explorer 或注销一次才恢复。图**不**放在载荷里：`appLogoOverride` 那个槽位是正文左边的缩略图，不是标题位置，两处不是一回事。点通知就是让该协议把程序再叫起来一次：那一份发现单实例互斥体有人拿着，就让已经在跑的那份把窗口提到前面（`instance.go`），自己什么都不做。
+
+</details>
+
+<details>
 <summary>日志的写法</summary>
 
 全程序只用 `log/slog`，出口只有一个：`setupLogging` 里那一句 `slog.SetDefault`（它顺带把标准 `log` 包桥接过来，所以库在 `systray.Logger` 为 nil 时写的行也落在同一个文件里）。写日志时：
 
 - **消息是稳定的模板，变量进字段**：`slog.Info("service started", "pid", pid)`，而不是 `log.Printf("service pid %d", pid)`。前者的每一行都是同一条 `msg`，可以按 `msg=` 检索、按字段过滤；后者每次都是一条新消息，既数不出来也过滤不了。
 - **级别按语义**：`Error` 是「这件事失败了」，`Warn` 是「还能继续，但值得知道」（服务没起来、排队的活儿迟了 48 秒、自启动没写成），`Info` 是启动与状态。
-- **字段用词固定**：`error`、`path`、`url`、`pid`、`status`、`waited`、`late`、`line`；`windowState` 自己实现了 `LogValue`，于是落成 `state.width=726 state.onTop=false` 这样的分组。
+- **字段用词固定**：`error`、`path`、`url`、`pid`、`status`、`waited`、`late`、`line`、`title`；`windowState` 自己实现了 `LogValue`，于是落成 `state.width=726 state.onTop=false` 这样的分组。
 
 </details>
 
@@ -132,6 +143,7 @@ Go 侧的探测没有 cookie，看不出这个窗口能不能进去，所以不�
 |---|---|
 | `window-state.json` | 窗口大小、是否最大化、上次打开的地址（**不含 token**）；位置有意不记 |
 | `app.log` | 运行日志，超过 1 MiB 轮转一次 |
+| `notification-icon.ico` | 通知里署名旁边那幅画：`IconUri` 要文件，所以每次运行现画一张放在这里；**只装一张**，尺寸取 `SM_CXSMICON` |
 | `EBWebView\` | WebView2 的浏览器配置目录，会话 cookie 在这里 |
 
 ## 致谢

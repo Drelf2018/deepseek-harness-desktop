@@ -3,7 +3,7 @@ package main
 // The resource icon, checked without writing anything: the same drawing internal/genicon packs,
 // read back for its structure. The resource itself is written at release time, in a Linux
 // container where this package cannot even be compiled. The window's own icons are a different
-// thing (icons.go).
+// thing (window.go).
 
 import (
 	"bytes"
