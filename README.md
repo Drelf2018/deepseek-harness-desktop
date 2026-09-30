@@ -35,17 +35,22 @@
   恢复参数尺寸 / 参考尺寸 ▸ / 相对占比 ▸ / 宽高比 ▸
   ──────── 最后仍是系统自己的：关闭
 
-托盘（平铺）
+托盘
   显示窗口 / 开机自启动
   ────────────────
   设置访问地址 / 在浏览器中打开
   ────────────────
   打开日志文件 / 打开数据目录 / 打开程序目录
+  打开工作区目录 ▸
   ────────────────
   重启 / 退出
 ```
 
 本地构建（`Version` 仍是 `dev`）在「打开程序目录」那组之后还多一个**测试**子菜单：三张提示页平时要等真实故障才看得到，那里可以直接把它们调出来看效果；最后一项「系统通知」直接弹一条通知，用来验通知那条链（`notify.ps1` → PowerShell → 按 `appID` 署名 → 点它把窗口叫回来）。发布版没有它——`-X main.Version=<tag>` 每次都会把 `Version` 填上，所以 `"dev"` 就等于「这一份是自己编的」。
+
+### 打开工作区目录
+
+这一项列的是 dsh 自己认得的工作区，顺序就是侧栏里的顺序：名字是侧栏里看到的那个名字，点了就是用默认程序打开那个文件夹。它读的是 dsh 的 registry（`$DSH_HOME/storages/workspace.json`，默认 `~/.dsh`），而 dsh 的家按 dsh 自己那条规则找——`$DSH_HOME` 去空白后非空就听它的，否则 `~/.dsh`。读不到 registry 就不建这一项：菜单里少一行，好过一个点了什么也不发生的空子菜单。
 
 ### 重启是什么
 
@@ -90,13 +95,14 @@ go build -ldflags=-H=windowsgui -o "DeepSeek Harness Desktop.exe" .
 | `instance.go` | 单实例：互斥体定谁是第一份，具名事件把第二次启动叫窗口的请求交给它 |
 | `startup.go` | 开机自启动（注册表 `HKCU\...\Run`） |
 | `appdata.go` | 本程序的路径：`%LOCALAPPDATA%` 下的日志与窗口状态，以及 exe 所在的程序目录 |
+| `workspace.go` | dsh 的工作区 registry：按 dsh 自己的规则找到它的家，读出侧栏顺序的工作区名字与路径 |
 | `js/` | 注入到页面里的四段脚本：`askForURL.js`（改地址）、`askWindow.js`（问一次进不进得去）、`reload.js`（刷新）、`notify.js`（出现等人的面板时通知一声）。各自的 `go:embed` 就在用它的人旁边 |
 | `internal/artwork/` | 图标源按任意尺寸画出来、居中，拼成多尺寸 .ico，或只装一张（通知的图标要的是文件，而且只能装一张）。**与平台无关**，所以生成器能在 Linux 容器里跑 |
 | `internal/artwork/harness.svg` | 图标源，矢量，每个尺寸现画 |
 | `internal/genicon/` | 生成器：写 `rsrc.syso`（`go run ./internal/genicon [arch]`） |
 | `internal/artwork/artwork_test.go` | 只校验：把同样几张图读回来，检查条目数与尺寸，不写任何文件 |
 | `internal/genicon/main_test.go` | 打包那一步落在临时目录里：rsrc 嵌一次，再读回来确认非空 |
-| `*_test.go` | 尺寸下限、自启动、提示页、服务输出解析、系统菜单 id |
+| `*_test.go` | 尺寸下限、自启动、提示页、服务输出解析、系统菜单 id、工作区 registry |
 
 ## 实现细节
 

@@ -467,6 +467,24 @@ func addMenuItems() {
 		}
 	}()
 
+	// 工作区是 dsh 自己的那一组目录，不属于本程序，所以它是一个子菜单而不是第四行：名字就是侧栏
+	// 里看到的那个名字，点了就是「用默认程序打开那个文件夹」（见 workspace.go）。
+	//
+	// 读不到 registry 就不建这一项——没装 dsh、家被 DSH_HOME 指到了别处、文件换了格式，都是同一个
+	// 回答：菜单里少一行，好过一个点了什么也不发生的空子菜单。
+	if list := workspaces(); len(list) > 0 {
+		mWorkspaces := systray.AddMenuItem("打开工作区目录", "打开某个 DeepSeek Harness 工作区所在的目录")
+		for _, w := range list {
+			item := mWorkspaces.AddSubMenuItem(w.Title, w.Path)
+			path := w.Path
+			go func() {
+				for range item.ClickedCh {
+					shellOpen(path)
+				}
+			}()
+		}
+	}
+
 	systray.AddSeparator()
 
 	// 本地构建里多一个「测试」子菜单：三张提示页要等真实的故障才看得到，通知要等一个真面板，
