@@ -34,3 +34,6 @@ go.work.sum
 # The icon resource is generated (internal/genicon writes it, and the release workflow runs that
 # before it builds), so it is not carried in the source.
 rsrc.syso
+
+# Go 的构建缓存（GOCACHE）。在沙箱里跑 go 命令时会被指到工作区里来；纯缓存，删了下次编译会重新生成。
+.gocache/

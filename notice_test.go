@@ -48,8 +48,11 @@ func TestNoticePages(t *testing.T) {
 		if c.path && !strings.Contains(html, logPath()) {
 			t.Errorf("%s page does not name the log file %q:\n%s", c.name, logPath(), html)
 		}
-		// 反过来的那一面：不给路径的页面，装它的那个框也不该在。
-		if !c.path && strings.Contains(html, "<span") {
+		// 有路径的页面要真的装上那个框；没有路径的页面，那个框也不该在。框里的元素是 <code>，
+		if c.path && !strings.Contains(html, "<code") {
+			t.Errorf("%s page names the log file but carries no box for it:\n%s", c.name, html)
+		}
+		if !c.path && strings.Contains(html, "<code") {
 			t.Errorf("%s page has no path to show, yet carries the box for one:\n%s", c.name, html)
 		}
 	}
