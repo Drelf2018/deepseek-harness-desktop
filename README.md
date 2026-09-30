@@ -94,7 +94,8 @@ go build -ldflags=-H=windowsgui -o "DeepSeek Harness Desktop.exe" .
 | `internal/artwork/` | 图标源按任意尺寸画出来、居中，拼成多尺寸 .ico，或只装一张（通知的图标要的是文件，而且只能装一张）。**与平台无关**，所以生成器能在 Linux 容器里跑 |
 | `internal/artwork/harness.svg` | 图标源，矢量，每个尺寸现画 |
 | `internal/genicon/` | 生成器：写 `rsrc.syso`（`go run ./internal/genicon [arch]`） |
-| `icon_test.go` | 只校验：把同样几张图读回来，检查条目数与尺寸，不写任何文件 |
+| `internal/artwork/artwork_test.go` | 只校验：把同样几张图读回来，检查条目数与尺寸，不写任何文件 |
+| `internal/genicon/main_test.go` | 打包那一步落在临时目录里：rsrc 嵌一次，再读回来确认非空 |
 | `*_test.go` | 尺寸下限、自启动、提示页、服务输出解析、系统菜单 id |
 
 ## 实现细节
