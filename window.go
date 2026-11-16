@@ -210,6 +210,10 @@ func newWindow(state windowState) *webviewWindow {
 		// AreDevToolsEnabled 和 AreDefaultContextMenusEnabled 的。留成零值（原来的样子）时，
 		// F12 什么都打不开，页面也没有自己的右键菜单。
 		Debug: true,
+		// 切回窗口时把键盘焦点交还给 WebView。库在 WM_ACTIVATE 里只看这个开关（wndproc 的
+		// WMActivate 分支），没有它，焦点停在顶层窗口上：页面里的输入框看着还在，敲字却进不去，
+		// 要再点一下才拿得回来。
+		AutoFocus: true,
 		WindowOptions: webview2.WindowOptions{
 			Title:  appName,
 			Width:  uint(state.Width),
