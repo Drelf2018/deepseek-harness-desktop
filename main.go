@@ -377,12 +377,8 @@ func main() {
 //	设置访问地址
 //	在浏览器中打开
 //	────────────────
-//	打开日志文件
-//	打开数据目录
-//	打开程序目录
-//	────────────────
 //	测试 ▸	（本地构建才有）
-//	────────────────
+//	打开 ▸	（日志文件 / 数据目录 / 程序目录）
 //	重启
 //	退出
 func addMenuItems() {
@@ -414,8 +410,7 @@ func addMenuItems() {
 	// 窗口的事跟着窗口走，托盘只留这个程序自己的事。
 	systray.AddSeparator()
 
-	// 这一段是这条地址：改它，或者拿它到别处打开。它排在「文件」之前，一是它比翻日志常用，
-	// 二是这样一来它就不夹在几个「打开…」中间——下面那三个是同一件事，本地的文件与文件夹。
+	// 这一段是这条地址：改它，或者拿它到别处打开。
 	mSetURL := systray.AddMenuItem("设置访问地址", "在弹出的输入框里改掉当前打开的地址")
 	go func() {
 		for range mSetURL.ClickedCh {
@@ -433,57 +428,6 @@ func addMenuItems() {
 			shellOpen(url())
 		}
 	}()
-
-	systray.AddSeparator()
-
-	// 这一段是这个程序的东西都放在哪儿：它的日志、它写状态的地方、它自己被解开放着的地方。
-	// 三个都是「打开…」，是同一件事，所以排在一起。
-	mLog := systray.AddMenuItem("打开日志文件", "用默认程序打开运行日志")
-	go func() {
-		for range mLog.ClickedCh {
-			shellOpen(logPath())
-		}
-	}()
-
-	mData := systray.AddMenuItem("打开数据目录", "打开存窗口状态和日志的那个目录")
-	go func() {
-		for range mData.ClickedCh {
-			shellOpen(appDataDir())
-		}
-	}()
-
-	// 这一个和上面那个是两处地方，不该混：数据目录在 %LOCALAPPDATA% 下，是这个程序写东西的地方；
-	// 程序目录是这个 .exe 被解开放着的地方，属于把它放在那里的人（见 appdata.go）。
-	// 「程序」不是随手挑的词：原来叫「运行目录」，而「运行」在这个菜单里什么都不特指。
-	mProgramDir := systray.AddMenuItem("打开程序目录", "打开本程序 exe 所在的那个目录")
-	go func() {
-		for range mProgramDir.ClickedCh {
-			dir, err := programDir()
-			if err != nil {
-				slog.Warn("program dir", "error", err)
-				continue
-			}
-			shellOpen(dir)
-		}
-	}()
-
-	// 工作区是 dsh 自己的那一组目录，不属于本程序，所以它是一个子菜单而不是第四行：名字就是侧栏
-	// 里看到的那个名字，点了就是「用默认程序打开那个文件夹」（见 workspace.go）。
-	//
-	// 读不到 registry 就不建这一项——没装 dsh、家被 DSH_HOME 指到了别处、文件换了格式，都是同一个
-	// 回答：菜单里少一行，好过一个点了什么也不发生的空子菜单。
-	if list := workspaces(); len(list) > 0 {
-		mWorkspaces := systray.AddMenuItem("打开工作区目录", "打开某个 DeepSeek Harness 工作区所在的目录")
-		for _, w := range list {
-			item := mWorkspaces.AddSubMenuItem(w.Title, w.Path)
-			path := w.Path
-			go func() {
-				for range item.ClickedCh {
-					shellOpen(path)
-				}
-			}()
-		}
-	}
 
 	systray.AddSeparator()
 
@@ -522,6 +466,39 @@ func addMenuItems() {
 			}
 		}()
 	}
+
+	// 三个「打开某处」收进一个子菜单：它们都是「本程序的东西放在哪儿」，很少用，而托盘上每一项
+	// 都占着一整行。子项的标题只写下半句——上一级已经说了「打开」。
+	mOpenDir := systray.AddMenuItem("打开", "打开本程序的日志、数据目录或者程序目录")
+
+	mLog := mOpenDir.AddSubMenuItem("日志文件", "用默认程序打开运行日志")
+	go func() {
+		for range mLog.ClickedCh {
+			shellOpen(logPath())
+		}
+	}()
+
+	mData := mOpenDir.AddSubMenuItem("数据目录", "打开存窗口状态和日志的那个目录")
+	go func() {
+		for range mData.ClickedCh {
+			shellOpen(appDataDir())
+		}
+	}()
+
+	// 这一个和上面那个是两处地方，不该混：数据目录在 %LOCALAPPDATA% 下，是这个程序写东西的地方；
+	// 程序目录是这个 .exe 被解开放着的地方，属于把它放在那里的人（见 appdata.go）。
+	// 「程序」不是随手挑的词：原来叫「运行目录」，而「运行」在这个菜单里什么都不特指。
+	mProgramDir := mOpenDir.AddSubMenuItem("程序目录", "打开本程序 exe 所在的那个目录")
+	go func() {
+		for range mProgramDir.ClickedCh {
+			dir, err := programDir()
+			if err != nil {
+				slog.Warn("program dir", "error", err)
+				continue
+			}
+			shellOpen(dir)
+		}
+	}()
 
 	// 接替的那一份先起来，这一份再走：反过来的话，新的一份会看见一个正在退出的旧实例，把它
 	// 当成「已经有一份在跑」，叫它出来然后自己退掉——重启的结果会是一个窗口都没有。
