@@ -47,6 +47,10 @@
 
 本地构建（`Version` 仍是 `dev`）在「打开」子菜单之前还多一个**测试**子菜单：三张提示页平时要等真实故障才看得到，那里可以直接把它们调出来看效果；最后一项「系统通知」直接弹一条通知，用来验通知那条链（`notify.ps1` → PowerShell → 按 `appID` 署名 → 点它把窗口叫回来）。发布版没有它——`-X main.Version=<tag>` 每次都会把 `Version` 填上，所以 `"dev"` 就等于「这一份是自己编的」。
 
+### 页面里的链接
+
+聊天里的网址、侧栏那个浏览器、页面自己 `window.open` 的外站地址，以及页面没有接管的裸锚点（比如工具输出里被自动识别成链接的地址），都交给**系统默认浏览器**打开，不在应用里另开弹窗。两条路都要接：页面自己处理的那类走 `window.open`，没处理的那类只有点击能拦；同一个点击被两边都碰到的情形，用「这个地址刚由点击交过一次」的一次性标记去掉重复——不是时间窗口。只接管「出了这个页面」的地址（`http`/`https` 的异源，以及 `mailto`）：账号登录那种 `about:blank` 弹窗、文档预览的 `blob:`、终端那个空弹窗，仍旧留在应用里，因为那是页面在跟自己说话。
+
 ### 重启是什么
 
 「重启」是退出加一次重新开始：它先把接替的那一份叫起来（带上 `-restart`，让它等这一份松开单实例 mutex），再走完正常的退出——记住尺寸与地址、结束自己启动的服务。于是窗口按上次的大小和地址重新开出来，服务也是新的一份（那条链接上的会话随之结束）。原样传下去的只有影响行为的参数：`-no-service`。
@@ -87,16 +91,17 @@ go build -ldflags=-H=windowsgui -o "DeepSeek Harness Desktop.exe" .
 | `service.go` | DSH 服务的启动、输出解析、带 token 链接、Job Object 兜底 |
 | `notice.go` + `loading.html` | 服务不可用时的三张本地提示页：文字在 Go 里，版式在模板里，转义交给 `html/template` |
 | `notify.go` + `notify.ps1` | 等人的面板出现时弹系统通知：注册 AppUserModelID 与 URL 协议；toast 连载荷一起写在那个 .ps1（`text/template`）里，Go 只填启动地址、署名与两行文字 |
+| `external.go` | 页面里指向外部的链接交给默认浏览器：一个绑定，加一份只允许 `http`/`https`/`mailto` 的地址检查 |
 | `instance.go` | 单实例：互斥体定谁是第一份，具名事件把第二次启动叫窗口的请求交给它 |
 | `startup.go` | 开机自启动（注册表 `HKCU\...\Run`） |
 | `appdata.go` | 本程序的路径：`%LOCALAPPDATA%` 下的日志与窗口状态，以及 exe 所在的程序目录 |
-| `js/` | 注入到页面里的四段脚本：`askForURL.js`（改地址）、`askWindow.js`（问一次进不进得去）、`reload.js`（刷新）、`notify.js`（出现等人的面板时通知一声）。各自的 `go:embed` 就在用它的人旁边 |
+| `js/` | 注入到页面里的五段脚本：`askForURL.js`（改地址）、`askWindow.js`（问一次进不进得去）、`reload.js`（刷新）、`notify.js`（出现等人的面板时通知一声）、`openExternal.js`（指向外部的链接交给默认浏览器）。各自的 `go:embed` 就在用它的人旁边 |
 | `internal/artwork/` | 图标源按任意尺寸画出来、居中，拼成多尺寸 .ico，或只装一张（通知的图标要的是文件，而且只能装一张）。**与平台无关**，所以生成器能在 Linux 容器里跑 |
 | `internal/artwork/harness.svg` | 图标源，矢量，每个尺寸现画 |
 | `internal/genicon/` | 生成器：写 `rsrc.syso`（`go run ./internal/genicon [arch]`） |
 | `internal/artwork/artwork_test.go` | 只校验：把同样几张图读回来，检查条目数与尺寸，不写任何文件 |
 | `internal/genicon/main_test.go` | 打包那一步落在临时目录里：rsrc 嵌一次，再读回来确认非空 |
-| `*_test.go` | 尺寸下限、自启动、提示页、服务输出解析、系统菜单 id |
+| `*_test.go` | 尺寸下限、自启动、提示页、服务输出解析、系统菜单 id、外部链接的协议 |
 
 ## 实现细节
 
